@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерфейс Распознавания Лиц</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+            overflow-y: auto;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+        .section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .section h2 {
+            margin-top: 0;
+        }
+        .button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        input[type="file"], input[type="text"], input[type="password"], input[type="email"] {
+            margin-top: 10px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .result {
+            margin-top: 10px;
+            font-weight: bold;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+        .result img {
+            max-width: 100%;
+            max-height: 400px;
+            display: block;
+            margin: 10px auto 0 auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Login Section -->
+    <div class="section" id="loginSection">
+        <h2>Вход</h2>
+        <input type="email" id="username" placeholder="Введите свою почту">
+        <input type="password" id="password" placeholder="Введите пароль">
+        <button class="button" onclick="login()">Войти</button>
+        <div class="result" id="loginResult"></div>
+    </div>
+
+    <!-- Upload Multiple Faces Section -->
+    <div class="section" id="uploadFacesSection">
+        <h2>Загрузка изображений</h2>
+        <input type="file" id="uploadFiles" multiple>
+        <button class="button" onclick="uploadMultipleFaces()">Загрузить изображения</button>
+        <div class="result" id="uploadResult"></div>
+    </div>
+
+    <!-- Recognize Multiple Faces Section -->
+    <div class="section" id="recognizeFacesSection">
+        <h2>Распознавание лиц на изображениях</h2>
+        <input type="file" id="recognizeFiles" multiple>
+        <button class="button" onclick="recognizeMultipleFaces()">Загрузить изображения</button>
+        <div class="result" id="recognizeResult"></div>
+    </div>
+
+    <!-- Get Image by ID Section -->
+    <div class="section" id="getImageByIdSection">
+        <h2>Получение изображения по ID</h2>
+        <input type="text" id="imageId" placeholder="Введите ID Изображения">
+        <button class="button" onclick="getImageById()">Получить изображение</button>
+        <div class="result" id="imageResult"></div>
+    </div>
+
+</div>
+
+<script>
+    const baseUrl = 'http://127.0.0.1:8000';
+    let token = null;
+
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+
+        try {
+            const response = await fetch(`${baseUrl}/token`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.text();
+                document.getElementById('loginResult').textContent = `Ошибка входа: ${errorData}`;
+                return;
+            }
+
+            const result = await response.json();
+            token = result.access_token;
+            document.getElementById('loginResult').textContent = "Вход выполнен успешно!";
+        } catch (error) {
+            document.getElementById('loginResult').textContent = "Ошибка при входе.";
+        }
+    }
+
+    async function uploadMultipleFaces() {
+        if (!token) {
+            alert("Пожалуйста, войдите в систему.");
+            return;
+        }
+
+        const fileInput = document.getElementById('uploadFiles');
+        const files = fileInput.files;
+
+        if (files.length === 0) {
+            document.getElementById('uploadResult').textContent = "Файлы не выбраны";
+            return;
+        }
+
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/upload_multiple_faces/`, {
+                method: 'POST',
+                body: formData,
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            const result = await response.json();
+            let output = "Результаты загрузки:\n";
+
+            result.results.forEach(fileResult => {
+                output += `Файл: ${fileResult.file}\n`;
+
+                if (fileResult.faces.length === 0 || (fileResult.faces.length === 1 && fileResult.faces[0].message === "Лица не обнаружены")) {
+                    output += "  Лица не обнаружены\n";
+                } else {
+                    fileResult.faces.forEach((face, index) => {
+                        output += `  Лицо ${index + 1}:\n`;
+                        if (face.message) {
+                            output += `    ${face.message}\n`;
+                        }
+                        if (face.id && face.name) {
+                            output += `    ID: ${face.id}, Имя: ${face.name}\n`;
+                        }
+                    });
+                }
+                output += "\n";
+            });
+
+            document.getElementById('uploadResult').textContent = output;
+        } catch (error) {
+            document.getElementById('uploadResult').textContent = "Ошибка при загрузке лиц.";
+        }
+    }
+
+    async function recognizeMultipleFaces() {
+        if (!token) {
+            alert("Пожалуйста, войдите в систему.");
+            return;
+        }
+
+        const fileInput = document.getElementById('recognizeFiles');
+        const files = fileInput.files;
+
+        if (files.length === 0) {
+            document.getElementById('recognizeResult').textContent = "Файлы не выбраны";
+            return;
+        }
+
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/recognize_multiple_faces/`, {
+                method: 'POST',
+                body: formData,
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            const result = await response.json();
+
+            let output = "Результаты распознавания:\n";
+            result.results.forEach((fileResult) => {
+                output += `Файл: ${fileResult.file}:\n`;
+                if (fileResult.faces.length === 0) {
+                    output += "  Лица не обнаружены\n";
+                } else {
+                    fileResult.faces.forEach((faceResult, faceIndex) => {
+                        if (Array.isArray(faceResult.matches) && faceResult.matches.length > 0) {
+                            output += `  Лицо №${faceIndex + 1}:\n`;
+                            faceResult.matches.forEach(match => {
+                                output += `    ID: ${match.id}, Имя: ${match.name}\n`;
+                            });
+                        } else {
+                            output += `  Лицо №${faceIndex + 1}: Совпадений не найдено\n`;
+                        }
+                    });
+                }
+            });
+            document.getElementById('recognizeResult').textContent = output;
+        } catch (error) {
+            document.getElementById('recognizeResult').textContent = "Ошибка при распознавании лиц.";
+        }
+    }
+
+    async function getImageById() {
+        if (!token) {
+            alert("Пожалуйста, войдите в систему.");
+            return;
+        }
+
+        const imageId = document.getElementById('imageId').value;
+
+        if (!imageId) {
+            document.getElementById('imageResult').textContent = "Введите ID изображения";
+            return;
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/get_face_image/${imageId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    document.getElementById('imageResult').textContent = "С таким ID нет изображения лица";
+                } else {
+                    document.getElementById('imageResult').textContent = "Произошла ошибка при получении изображения";
+                }
+                return;
+            }
+
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
+            document.getElementById('imageResult').innerHTML = `<img src="${imageUrl}" alt="Изображение по ID">`;
+        } catch (error) {
+            document.getElementById('imageResult').textContent = "Произошла ошибка при отправке запроса.";
+        }
+    }
+
+
+</script>
+
+</body>
+</html>
