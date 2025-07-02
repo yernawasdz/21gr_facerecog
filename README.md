@@ -18,7 +18,7 @@ This project demonstrates practical use of computer vision, face matching, and s
 
 ## Demo Video
 
-**Watch on YouTube:** [https://youtu.be/kXas9sNMTeo](https://youtu.be/kXas9sNMTeo)
+**Watch on YouTube:** [https://youtu.be/kXas9sNMTeo](https://youtu.be/kXas9sNMTeo) (RUSSIAN LANGUAGE)
 
 ---
 
